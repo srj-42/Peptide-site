@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LR Resource — assay-typed ligand–receptor interactions</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <h1>LR Resource <span>· human &amp; mouse peptide ligand–receptor interactions</span></h1>
+  <p class="sub">An evidence-typed ligand–receptor resource. Every pair is traced to primary
+    literature and each claim is labelled with <b>the kind of experiment that supports it</b> —
+    which no upstream resource records. Negative results are kept, not discarded.</p>
+  <nav>
+    <button data-tab="browse" class="on">Browse</button>
+    <button data-tab="stats">Statistics</button>
+    <button data-tab="methods">Methods</button>
+    <button data-tab="sources">Sources</button>
+  </nav>
+</header>
+
+<main>
+<!-- ================= BROWSE ================= -->
+<section id="tab-browse">
+  <div class="panel">
+    <div class="filters">
+      <div class="f"><label>Search ligand / receptor</label>
+        <input type="search" id="q" placeholder="e.g. WNT3A, FZD4, IL6"></div>
+      <div class="f"><label>Species</label><select id="species">
+        <option value="">all</option><option value="h">human</option><option value="m">mouse</option>
+      </select></div>
+      <div class="f"><label>Verification</label><select id="status">
+        <option value="">all</option><option value="verified">verified</option>
+        <option value="checked_unsupported">checked, unsupported</option>
+        <option value="unverified">unverified</option>
+      </select></div>
+      <div class="f"><label>Assay class</label><select id="assay">
+        <option value="">any</option><option>structural</option><option>direct_binding</option>
+        <option>functional_in_vitro</option><option>functional_in_vivo</option>
+        <option>computational</option>
+      </select></div>
+      <div class="f"><label>Min confidence</label>
+        <input type="number" id="minscore" min="0" max="1" step="0.1" value="0" style="width:80px"></div>
+      <div class="f"><label>Interaction class</label><select id="iclass">
+        <option value="">all classes</option>
+        <option value="Ligand-Receptor">Ligand–Receptor only</option>
+        <option value="Ligand-Ligand">Ligand–Ligand</option>
+        <option value="Receptor-Receptor">Receptor–Receptor</option>
+        <option value="Adhesion-Adhesion">Adhesion–Adhesion</option>
+        <option value="Gap-Gap">Gap–Gap</option>
+        <option value="__null">unclassified</option>
+      </select></div>
+      <div class="f"><label>Only</label><select id="only">
+        <option value="">everything</option>
+        <option value="neg">has a refuting paper</option>
+        <option value="unassessed">not assessed yet</option>
+        <option value="zero">assessed, nothing confirmed</option>
+        <option value="pw">has a pathway</option>
+        <option value="cplx">complex receptor</option>
+      </select></div>
+      <div class="count" id="count"></div>
+    </div>
+    <div style="overflow-x:auto">
+    <table>
+      <thead><tr>
+        <th data-s="1">Ligand</th><th data-s="2">Receptor</th><th data-s="3">Sp.</th>
+        <th data-s="10">Class</th><th data-s="4">Status</th><th data-s="5" class="sorted">Confidence</th>
+        <th data-s="6">Papers</th><th data-s="11">Assay classes</th>
+        <th data-s="12">Pathway</th><th data-s="13">Sources</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    </div>
+    <div class="pager">
+      <button id="prev">‹ Prev</button><span id="pageinfo"></span><button id="next">Next ›</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= STATS ================= -->
+<section id="tab-stats" class="hide"><div id="statbody"></div></section>
+
+<!-- ================= METHODS ================= -->
+<section id="tab-methods" class="hide"><div class="panel prose" id="methodsbody"></div></section>
+
+<!-- ================= SOURCES ================= -->
+<section id="tab-sources" class="hide"><div class="panel prose" id="srcbody"></div></section>
+
+<!-- ================= DOWNLOADS ================= -->
+</main>
+
+<div id="detail"></div>
+
+<script>window.__EV=[];</script>
+<script src="data/stats.js"></script>
+<script src="data/complexes.js"></script>
+<script src="data/papers.js"></script>
+<script src="data/interactions.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
