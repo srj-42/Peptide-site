@@ -169,6 +169,7 @@
           ${cxR ? `<dt>Receptor complex</dt><dd>${cxR.map(esc).join(" + ")}</dd>` : ""}
           <dt>Pathways</dt><dd>${r[12] ? esc(r[12]) : "—"} <span style="color:#6b6b66;font-size:12px">(CellChatDB annotation — not evidence)</span></dd>
           <dt>Reported by</dt><dd>${esc(r[13].replace(/"/g, "") || "—")}</dd>
+          ${r[15] ? `<dt>Evidence class</dt><dd>${r[15].split(",").map(k => `<span class="chip" title="${k === "nomenclature_evident" ? "The receptor's official HGNC name contains this ligand's own name (exact name only). High confidence without a citation." : "Annotated in a curated protein/interaction database with a PubMed reference."}">${k === "nomenclature_evident" ? "name-evident" : "database-annotated"}</span>`).join(" ")}</dd>` : ""}
           ${r[14] ? `<dt>Ortholog</dt><dd>inferred by projection from the human pair</dd>` : ""}
         </dl>
         <h3 style="margin:0 0 10px;font-size:14px">Evidence (${ev.length} record${ev.length === 1 ? "" : "s"})</h3>
@@ -264,6 +265,8 @@
         <div class="mono">0.70</div></div>
       <div class="dl"><div><b>computational</b><br><span>docking, modelling, text-mining \u2014 no observation behind it</span></div>
         <div class="mono">0.35</div></div>
+      <div class="dl"><div><b>others</b><br><span>the paper states the pair interacts, but the experiment cannot be identified</span></div>
+        <div class="mono">0.10</div></div>
 
       <p style="margin-top:14px"><b>Repeats of the same assay type count for less</b>, so two orthogonal
       methods agreeing is worth more than the same experiment redone:</p>
