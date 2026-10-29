@@ -204,7 +204,7 @@
     $("#statbody").innerHTML = `
       <div class="stat-grid">
         <div class="stat"><b>${I.length.toLocaleString()}</b><span>interactions (human + mouse)</span></div>
-        <div class="stat"><b>${scored.toLocaleString()}</b><span>with ≥1 confirmed primary paper</span></div>
+        <div class="stat"><b>${st.verified.toLocaleString()}</b><span>verified pairs</span></div>
         <div class="stat"><b>${at.typed.toLocaleString()}</b><span>assay-typed confirmed rows (${at.percent_of_confirmed}% of confirmed)</span></div>
       </div>
       <div class="panel" style="margin-bottom:14px">
