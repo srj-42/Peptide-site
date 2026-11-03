@@ -221,11 +221,30 @@
       r[11] && r[11].split(",").filter(Boolean).forEach(c => assay[c] = (assay[c] || 0) + 1);
     });
     const mx = o => Math.max(...Object.values(o));
+    const bs = S.by_source || {}, cmpMax = Math.max(I.length, ...Object.values(bs).map(x => x.pairs), 1);
+    const cmpBar = (lab, tot, ver, strong) => `<div class="hbar" title="${esc(lab)}: ${ver.toLocaleString()} of ${tot.toLocaleString()} pairs verified">
+      <span class="lab"${strong ? ' style="color:var(--ink);font-weight:600"' : ""}>${esc(lab)}</span>
+      <span class="track" style="position:relative"><i style="width:${(tot / cmpMax * 100).toFixed(1)}%;opacity:.35"></i>
+        <i style="position:absolute;left:0;top:0;width:${(ver / cmpMax * 100).toFixed(1)}%;opacity:.9"></i></span>
+      <span class="n" style="width:150px">${tot.toLocaleString()} &middot; ${ver.toLocaleString()} verified</span></div>`;
+    const cmpRows = Object.entries(bs).map(([k, v]) => cmpBar(k, v.pairs, v.own_verified, false)).join("") +
+      cmpBar("This database", I.length, st.verified, true);
     $("#statbody").innerHTML = `
       <div class="stat-grid">
         <div class="stat"><b>${I.length.toLocaleString()}</b><span>interactions (human + mouse)</span></div>
         <div class="stat"><b>${st.verified.toLocaleString()}</b><span>verified pairs</span></div>
         <div class="stat"><b>${at.typed.toLocaleString()}</b><span>assay-typed confirmed rows (${at.percent_of_confirmed}% of confirmed)</span></div>
+      </div>
+      <div class="panel" style="margin-bottom:14px">
+        <h3 style="margin:0 0 10px;font-size:14px">Existing resources compared with this database</h3>
+        <p style="color:#6b6b66;font-size:12.5px;margin:0 0 10px">Each source resource as it stands: how many
+        ligand&ndash;receptor pairs it lists (human and mouse), and how many of those it already verifies by this project's
+        standard using only what the resource itself supplies &mdash; a paper it cites that states the interaction in a quoted
+        sentence, or a curated pharmacology record (GtoPdb). The last bar is this database, after reading the literature for
+        every pair and adding curated-database records (BioGRID, IntAct, PDB, UniProt, GtoPdb).</p>
+        ${cmpRows}
+        <div class="cmpkey"><span><i style="background:var(--accent)"></i>verified</span>
+          <span><i style="background:var(--accent);opacity:.35"></i>listed, not verified</span></div>
       </div>
       <div class="panel" style="margin-bottom:14px">
         <h3 style="margin:0 0 10px;font-size:14px">Evidence by verification outcome</h3>
@@ -275,23 +294,27 @@
       <p>Noisy-OR over distinct confirmed PMIDs \u2014 each independent paper is a separate chance to
       establish the pair \u2014 weighted by what kind of experiment backs it. The scale ranks how
       <i>directly</i> the experiment observes contact, not how good the science is:</p>
-      <div class="dl"><div><b>structural</b><br><span>co-crystal, cryo-EM, NMR of the complex</span></div>
+      <div class="dl"><div><b>structural</b><br><span>co-crystal, cryo-EM, NMR of the complex</span><br><span class="dbmap">Databases: PDB; IntAct and BioGRID records from crystallography, NMR or electron microscopy</span></div>
         <div class="mono">0.90</div></div>
-      <div class="dl"><div><b>direct binding</b><br><span>SPR, ITC, radioligand, pull-down, co-IP</span></div>
+      <div class="dl"><div><b>direct binding</b><br><span>SPR, ITC, radioligand, pull-down, co-IP</span><br><span class="dbmap">Databases: GtoPdb; IntAct and BioGRID records from binding methods (SPR, ITC, pull-down, reconstituted complex, cross-linking, co-immunoprecipitation)</span></div>
         <div class="mono">0.85</div></div>
-      <div class="dl"><div><b>functional in vitro</b><br><span>blocking or stimulating the receptor changes the ligand's effect in cells</span></div>
+      <div class="dl"><div><b>functional in vitro</b><br><span>blocking or stimulating the receptor changes the ligand's effect in cells</span><br><span class="dbmap">Databases: IntAct and BioGRID records from in-cell methods (two-hybrid, FRET, affinity capture with mass spectrometry)</span></div>
         <div class="mono">0.80</div></div>
       <div class="dl"><div><b>functional in vivo</b><br><span>removing one partner changes a phenotype in an animal</span></div>
         <div class="mono">0.70</div></div>
       <div class="dl"><div><b>computational</b><br><span>docking, modelling, text-mining \u2014 no observation behind it</span></div>
         <div class="mono">0.35</div></div>
-      <div class="dl"><div><b>others</b><br><span>the paper states the pair interacts, but the experiment cannot be identified</span></div>
+      <div class="dl"><div><b>others</b><br><span>the paper states the pair interacts, but the experiment cannot be identified</span><br><span class="dbmap">Databases: UniProt annotation sentences; IntAct and BioGRID records whose method fits none of the above</span></div>
         <div class="mono">0.10</div></div>
 
       <p style="margin-top:14px"><b>Repeats of the same assay type count for less</b>, so two orthogonal
       methods agreeing is worth more than the same experiment redone:</p>
       <div class="dl"><div><b>occurrence of an assay class</b></div><div class="mono">1st \u00b7 2nd \u00b7 3rd+</div></div>
       <div class="dl"><div><b>weight multiplied by</b></div><div class="mono">1.00 \u00b7 0.50 \u00b7 0.25</div></div>
+
+      <p style="margin-top:14px"><b>Curated-database records are scored like papers</b>, under the class listed
+      against each weight above, and share the repeat discount below. A record citing the same paper as a quoted
+      sentence counts once, at the stronger class. A receptor officially named after its ligand adds a fixed 0.9.</p>
 
       <p style="margin-top:14px">A read taken from an abstract alone is multiplied by <b>0.75</b>; a read
       that reached full text is undiscounted. An abstract states a conclusion, the full text shows the
@@ -327,61 +350,54 @@
       pathway_only: "pathway names only; no pairs imported from this file",
     };
     const omni = ps.omnipath_ligrecextra || { interactions: 0 };
-    $("#srcbody").innerHTML = `
-      <h3 style="margin-top:0">Where the pairs come from</h3>
-      <p>The ${n(total)} interactions were merged from <b>six pinned downloads</b> (ten files).
-      One of those downloads, <b>OmniPath ligrecextra</b>, is itself a consolidation: it carries
-      ${D.liana.length} of the ligand–receptor resources that LIANA compares
-      (Dimitrov et al., <i>Nat Commun</i> 13:3224, 2022), and alongside them names
-      ${D.co_attributing.length} general interaction and pathway databases. OmniPath contributes to
-      ${n(omni.interactions)} interactions, and <b>${n(D.omnipath_only)} of them come from OmniPath alone</b>, so
-      naming OmniPath without its contents understates where most of the new pairs come from.
-      Literature and structure services used to verify pairs are listed separately below; they are not sources of pairs.</p>
+    const tbl = (head, rows) => `<table class="trust"><thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${
+      rows.map(r => `<tr>${r.map(x => `<td>${x}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+    const AGG = {
+      connectomeDB2025: "Expert-curated ligand&ndash;receptor pairs with primary-paper citations (human and mouse)",
+      CellChatDB: "Curated ligand&ndash;receptor database behind the CellChat tool, partly built from KEGG",
+      ICELLNETv2: "Curated ligand&ndash;receptor database including multi-subunit receptors",
+      CellPhoneDBv5: "Curated ligand&ndash;receptor database including receptor complexes",
+      CellPhoneDB: "Older CellPhoneDB version, as bundled in LIANA",
+      LRdb: "Ligand&ndash;receptor list behind the SingleCellSignalR tool",
+      CellTalkDB: "Literature-curated ligand&ndash;receptor database (human and mouse)",
+      iTALK: "Ligand&ndash;receptor list compiled for the iTALK tool",
+      talklr: "Ligand&ndash;receptor list used by the talklr tool",
+      GtoPdb: "Expert-curated receptor pharmacology (IUPHAR/BPS Guide to Pharmacology)",
+      Cellinker: "Ligand&ndash;receptor database with per-pair citations",
+      Ramilowski2015: "Draft human ligand&ndash;receptor network (Ramilowski et al., 2015)",
+      EMBRACE: "Ligand&ndash;receptor list from the EMBRACE tool",
+      connectomeDB2020: "Earlier connectomeDB version (NATMI)",
+      Baccin2019: "Ligand&ndash;receptor list from Baccin et al., 2019 (bone-marrow niche)",
+      HPMR: "Human Plasma Membrane Receptome",
+      CellCall: "Ligand&ndash;receptor list from the CellCall tool",
+      Guide2Pharma: "Older copy of GtoPdb, as bundled in LIANA",
+      ICELLNET: "Older ICELLNET version, as bundled in LIANA",
+      Kirouac2010: "Ligand&ndash;receptor list from Kirouac et al., 2010",
+      scConnect: "Ligand&ndash;receptor list from the scConnect tool"
+    };
+    const VER = {
+      UniProt: "A curated function or subunit sentence naming the partner, with an experimental PubMed id",
+      BioGRID: "A physical interaction from a low-throughput study, with a PubMed id",
+      IntAct: "A curated physical interaction with its detection method and PubMed id (high-throughput screens excluded)",
+      GtoPdb: "An expert-curated ligand&ndash;receptor pharmacology record",
+      PDB: "A 3D structure containing a chain of each partner",
+      "HGNC approved name": "The receptor is officially named after the ligand"
+    };
+    const BS = S.by_source || {};
+    const sourcesTables = `
+      <h3 style="margin-top:0">1. Databases the pairs were aggregated from</h3>
+      <p>Every ligand&ndash;receptor pair in the table comes from at least one of these. They decide <i>which pairs exist</i>
+      here; listing a pair does not make it verified. Counts are pairs, human and mouse together.</p>
+      ${tbl(["Database", "What it contributes", "Pairs"], Object.entries(BS).map(([k, v]) => [esc(k), AGG[k] || "", n(v.pairs)]))}
 
-      <h3>1 · Pinned downloads</h3>
-      <table><thead><tr><th>Source</th><th>Role</th><th>Version</th><th style="text-align:right">Raw rows kept</th>
-        <th style="text-align:right">Interactions</th><th>Licence</th></tr></thead><tbody>
-      ${M.sources.map(s => { const c = ps[s.source_id]; return `<tr>
-        <td><b>${s.url && s.url !== "local" ? `<a href="${esc(s.url)}" title="${esc(s.url)}">${esc(s.name)}</a>` : esc(s.name) + ' <span style="color:#6b6b66;font-weight:400">(local file)</span>'}</b></td>
-        <td title="${esc(ROLE[s.role] || "")}">${esc(s.role)}</td>
-        <td>${esc(s.version || "not pinned (SHA-256 recorded)")}</td>
-        <td style="text-align:right">${c ? n(c.records) : "—"}</td>
-        <td style="text-align:right">${c ? n(c.interactions) : "—"}</td>
-        <td style="font-size:12px">${esc(s.licence)}</td></tr>`; }).join("")}
-      </tbody></table>
-      <p style="color:#6b6b66;font-size:12.5px">Roles: ${Object.entries(ROLE).map(([k, v]) => `<b>${k}</b> — ${v}`).join("; ")}.
-      CellPhoneDB counts sit on the interaction file; the complex, protein and gene files supply identifiers and subunits.
-      CellChatDB v2's own file is used only for pathway names, but <b>CellChatDB pairs do enter the resource</b>,
-      through OmniPath (table 2).</p>
-
-      <h3>2 · Ligand–receptor resources carried in OmniPath ligrecextra</h3>
-      <p>An OmniPath row was kept only if at least one of these resources attributes it
-      (<code>cur0h_omnipath_liana.py</code>). A pair can be attributed by several, so counts overlap.</p>
-      <table><thead><tr><th>Resource</th><th style="text-align:right">Interactions</th>
-        <th style="text-align:right">of which not in connectomeDB2025</th></tr></thead><tbody>
-      ${D.liana.map(r => `<tr><td><b>${esc(r.name)}</b></td><td style="text-align:right">${n(r.interactions)}</td>
-        <td style="text-align:right">${n(r.not_in_connectomedb)}</td></tr>`).join("")}
-      </tbody></table>
-      <p style="color:#6b6b66;font-size:12.5px">SingleCellSignalR is in LIANA's list but OmniPath records it under
-      its database name, LRdb. In the Browse table's <i>Sources</i> column, the direct downloads appear as
-      <code>connectomeDB2025</code>, <code>CellPhoneDBv5</code>, <code>ICELLNETv2</code> and <code>GtoPdb</code>;
-      the same databases reached through OmniPath appear under OmniPath's names
-      (<code>ConnectomeDB2025</code>, <code>CellPhoneDB</code>, <code>ICELLNET</code>, <code>Guide2Pharma</code>).</p>
-
-      <h3>3 · Other databases named on the same OmniPath rows</h3>
-      <p>These list the same pairs but are <b>not</b> why a pair was kept, and they add nothing to its score,
-      because agreement between databases is not treated as evidence. They are listed because their data is
-      inside the rows we store, and several have their own licence terms (HPRD, for example, is academic-use only).</p>
-      <p>${D.co_attributing.map(r => `<span class="chip" style="margin:0 4px 4px 0">${esc(r.name)} <span style="color:#6b6b66">${n(r.interactions)}</span></span>`).join("")}</p>
-
-      <h3>4 · Services used for verification and identifiers</h3>
-      ${D.services.map(s => `<div class="dl"><div><b>${esc(s[0])}</b><br><span>${esc(s[2])}</span></div>
-        <div class="mono" style="color:#6b6b66;font-size:11.5px">${esc(s[1])}</div></div>`).join("")}
-
-      <h3>Not part of this build</h3>
-      <p>MRCLinkdb, MetalinksDB, MetaLigand and MEBOCOST are in the curation database, but they are used only
-      by the companion non-peptide (small-molecule) resource. Nothing from them appears here.</p>
-      <div class="note"><b>Not cleared for redistribution.</b> ${esc(M.licence_note)}</div>`;
+      <h3>2. Databases and literature used to verify pairs</h3>
+      <p>A pair is <b>verified</b> when one of these backs it independently of the list it came from.</p>
+      ${tbl(["Source", "What counts as evidence", "Pairs it verifies"], [
+        ["Primary papers (PubMed, Europe PMC, PMC full text, publisher pages)", "A sentence from the paper's own text, quoted word for word, naming this ligand and this receptor", n(S.n_lit_verified || 0)],
+        ...Object.entries(S.by_dbsource || {}).map(([k, v]) => [esc(k), VER[k] || "", n(v)])])}
+      <p style="color:var(--muted);font-size:12.5px">A pair can be verified by several of these at once.</p>
+`;
+    $("#srcbody").innerHTML = sourcesTables;
   }
 
   apply(); buildStats(); buildMethods(); buildSources();
