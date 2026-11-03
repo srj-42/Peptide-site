@@ -18,6 +18,25 @@
       $("#tab-" + t).classList.toggle("hide", t !== b.dataset.tab));
   });
 
+  /* ---------- CSV download of the filtered table (owner request 2026-11-03) ---------- */
+  function csvCell(v) {
+    v = String(v == null ? "" : v);
+    return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  }
+  function saveCSV(name, head, rows) {
+    const text = "\ufeff" + [head, ...rows].map(r => r.map(csvCell).join(",")).join("\r\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
+    a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+  function downloadPeptideCSV() {
+    const head = ["interaction_id", "ligand", "receptor", "species", "verification_status", "confidence_score_provisional",
+      "n_confirmed_pmids", "n_assay_classes", "n_refuting_pmids", "receptor_kind", "interaction_class", "assay_classes",
+      "pathways", "source_databases", "ortholog_inferred", "evidence_classes"];
+    saveCSV("lr_peptide_pairs.csv", head, view.map(r => [r[0], r[1], r[2], r[3] === "h" ? "human" : r[3] === "m" ? "mouse" : r[3],
+      r[4], r[5] === null ? "" : r[5], r[6], r[7], r[8], r[9], r[10], r[11], r[12], r[13], r[14] ? "yes" : "no", r[15] || ""]));
+  }
   /* ---------- filtering ---------- */
   function apply() {
     const q = $("#q").value.trim().toUpperCase(),
@@ -100,6 +119,7 @@
     $("#rows").querySelectorAll("tr[data-id]").forEach(tr =>
       tr.onclick = () => openDetail(tr.dataset.id));
   }
+  $("#dlcsv").onclick = downloadPeptideCSV;
   $("#prev").onclick = () => { page--; render(); window.scrollTo(0, 0); };
   $("#next").onclick = () => { page++; render(); window.scrollTo(0, 0); };
 
