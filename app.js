@@ -129,11 +129,49 @@
   function needShard(id, cb) {
     const s = shardOf(id);
     if (loaded[s]) return cb();
-    const el = document.createElement("script");
-    el.src = `data/ev/ev${s}.js`;
-    el.onload = () => { loaded[s] = 1; cb(); };
-    el.onerror = () => { loaded[s] = 1; cb(); };
-    document.head.appendChild(el);
+    let left = 2;
+    const done = () => { if (--left === 0) { loaded[s] = 1; cb(); } };
+    for (const src of [`data/ev/ev${s}.js`, `data/sum/sum${s}.js`]) {
+      const el = document.createElement("script");
+      el.src = src;
+      el.onload = done;
+      el.onerror = done;
+      document.head.appendChild(el);
+    }
+  }
+  /* evidence summary (bottom of the drawer): [PMID:x] citations become PubMed links */
+  const cite = t => esc(t).replace(/\[((?:PMID:?\s*\d{5,9}[,;\s]*)+)\]/g, (m, inner) =>
+    inner.match(/\d{5,9}/g).map(p =>
+      `<a class="mono" href="https://pubmed.ncbi.nlm.nih.gov/${p}/" target="_blank" rel="noopener">[PMID ${p}]</a>`).join(" "));
+  function summaryHtml(s) {
+    if (!s) return "";
+    const aff = (s.affinity_potency || []).map(a =>
+      `${esc(a.value)}${a.assay ? ` (${esc(a.assay)}${a.system ? `, ${esc(a.system)}` : ""})` : ""} ${a.cite ? cite(`[${a.cite}]`) : ""}`).join("; ");
+    /* PMID, then the paper's own title (journal, year) from the papers table, then the AI's note on its own line */
+    const refs = (s.key_references || []).map(k => {
+      const p = P[k.PMID], title = p && p[0];
+      return `<div class="ref"><a class="mono" href="https://pubmed.ncbi.nlm.nih.gov/${esc(k.PMID)}/" target="_blank" rel="noopener">PMID ${esc(k.PMID)}</a>` +
+        (title ? ` &mdash; ${esc(title)} <i>${esc(p[1])}</i> ${esc(p[2])}` : "") +
+        (k.why ? `<div class="refnote"><b>Note:</b> ${esc(k.why)}</div>` : "") + `</div>`;
+    }).join("");
+    const row = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : "";
+    return `<h3 style="margin:22px 0 6px;font-size:14px">Evidence summary</h3>
+      <div class="summary">
+        <p class="headline">${cite(s.headline)}</p>
+        <dl class="kv">
+          ${row("Evidence type", esc(s.interaction_type))}
+          ${row("Direction and effect", cite(s.direction_and_effect))}
+          ${row("Molecular requirements", cite(s.molecular_requirements))}
+          ${row("Affinity / potency", aff || "not reported in our evidence")}
+          ${row("Species and systems", cite(s.species_and_systems))}
+          ${row("Localisation and range", cite(s.localisation_and_range))}
+          ${row("Caveats", cite(s.caveats))}
+          ${row("Key references", refs)}
+        </dl>
+        <p class="note">Written by an AI model using only the evidence records above, their abstracts and, where this
+        project holds it, the paper's full text${(s.covers || []).length > 1 ? "; it covers the human and mouse versions of this pair" : ""}.
+        Every statement cites its source; check the cited paper before relying on a detail.</p>
+      </div>`;
   }
   const OUTCOME_HELP = {
     confirmed: "A curator read this paper and it demonstrates the interaction.",
@@ -191,9 +229,13 @@
           <dt>Reported by</dt><dd>${esc(r[13].replace(/"/g, "") || "—")}</dd>
           ${r[15] ? `<dt>Evidence class</dt><dd>${r[15].split(",").map(k => `<span class="chip" title="${k === "nomenclature_evident" ? "The receptor's official HGNC name contains this ligand's own name (exact name only). High confidence without a citation." : "Annotated in a curated protein/interaction database with a PubMed reference."}">${k === "nomenclature_evident" ? "name-evident" : "database-annotated"}</span>`).join(" ")}</dd>` : ""}
           ${r[14] ? `<dt>Ortholog</dt><dd>inferred by projection from the human pair</dd>` : ""}
+          ${window.geneSection("Ligand gene links", cxL || [r[1]], r[3])}
+          ${window.geneSection("Receptor gene links", cxR || [r[2]], r[3])}
+          <dt></dt><dd style="color:#6b6b66;font-size:12px">External links only; expression and disease data are not used in any score here.</dd>
         </dl>
         <h3 style="margin:0 0 10px;font-size:14px">Evidence (${ev.length} record${ev.length === 1 ? "" : "s"})</h3>
         ${evHtml}
+        ${summaryHtml((window.__SUM[shardOf(id)] || {})[id])}
       </div></div>`;
       const close = () => $("#detail").innerHTML = "";
       $("#detail .close").onclick = close;
@@ -296,29 +338,26 @@
       <i>directly</i> the experiment observes contact, not how good the science is:</p>
       <div class="dl"><div><b>structural</b><br><span>co-crystal, cryo-EM, NMR of the complex</span><br><span class="dbmap">Databases: PDB; IntAct and BioGRID records from crystallography, NMR or electron microscopy</span></div>
         <div class="mono">0.90</div></div>
-      <div class="dl"><div><b>direct binding</b><br><span>SPR, ITC, radioligand, pull-down, co-IP</span><br><span class="dbmap">Databases: GtoPdb; IntAct and BioGRID records from binding methods (SPR, ITC, pull-down, reconstituted complex, cross-linking, co-immunoprecipitation)</span></div>
-        <div class="mono">0.85</div></div>
-      <div class="dl"><div><b>functional in vitro</b><br><span>blocking or stimulating the receptor changes the ligand's effect in cells</span><br><span class="dbmap">Databases: IntAct and BioGRID records from in-cell methods (two-hybrid, FRET, affinity capture with mass spectrometry)</span></div>
+      <div class="dl"><div><b>direct binding</b><br><span>SPR, ITC, radioligand, pull-down, co-IP</span><br><span class="dbmap">Databases: GtoPdb; Reactome binding reactions; IntAct and BioGRID records from binding methods (SPR, ITC, pull-down, reconstituted complex, cross-linking, co-immunoprecipitation)</span></div>
         <div class="mono">0.80</div></div>
-      <div class="dl"><div><b>functional in vivo</b><br><span>removing one partner changes a phenotype in an animal</span></div>
+      <div class="dl"><div><b>functional in vitro</b><br><span>blocking or stimulating the receptor changes the ligand's effect in cells</span><br><span class="dbmap">Databases: IntAct and BioGRID records from in-cell methods (two-hybrid, FRET, affinity capture with mass spectrometry)</span></div>
         <div class="mono">0.70</div></div>
+      <div class="dl"><div><b>functional in vivo</b><br><span>removing one partner changes a phenotype in an animal</span></div>
+        <div class="mono">0.60</div></div>
       <div class="dl"><div><b>computational</b><br><span>docking, modelling, text-mining \u2014 no observation behind it</span></div>
         <div class="mono">0.35</div></div>
-      <div class="dl"><div><b>others</b><br><span>the paper states the pair interacts, but the experiment cannot be identified</span><br><span class="dbmap">Databases: UniProt annotation sentences; IntAct and BioGRID records whose method fits none of the above</span></div>
+      <div class="dl"><div><b>others</b><br><span>the paper states the pair interacts, but the experiment cannot be identified</span><br><span class="dbmap">Databases: UniProt annotation sentences; other Reactome events (small complexes, non-binding reactions); IntAct and BioGRID records whose method fits none of the above</span></div>
         <div class="mono">0.10</div></div>
 
-      <p style="margin-top:14px"><b>Repeats of the same assay type count for less</b>, so two orthogonal
-      methods agreeing is worth more than the same experiment redone:</p>
-      <div class="dl"><div><b>occurrence of an assay class</b></div><div class="mono">1st \u00b7 2nd \u00b7 3rd+</div></div>
-      <div class="dl"><div><b>weight multiplied by</b></div><div class="mono">1.00 \u00b7 0.50 \u00b7 0.25</div></div>
+      <p style="margin-top:14px"><b>Every independent paper or record counts in full.</b> There is no
+      discount for repeating the same assay type, and a confirmed read counts the same whether it came from
+      the abstract or the full text. Each paper is one chance to establish the pair:
+      <code>score = 1 &minus; &prod; (1 &minus; w)</code> over the pair's distinct papers and records.</p>
 
       <p style="margin-top:14px"><b>Curated-database records are scored like papers</b>, under the class listed
-      against each weight above, and share the repeat discount below. A record citing the same paper as a quoted
-      sentence counts once, at the stronger class. A receptor officially named after its ligand adds a fixed 0.9.</p>
-
-      <p style="margin-top:14px">A read taken from an abstract alone is multiplied by <b>0.75</b>; a read
-      that reached full text is undiscounted. An abstract states a conclusion, the full text shows the
-      experiment. Journal, impact factor, citation count and expression data are
+      against each weight above. A record citing the same paper as a quoted
+      sentence counts once, at the stronger class. A receptor officially named after its ligand (e.g. <i>interleukin-6 receptor</i>) scores exactly 1, whatever its other papers say.
+      Journal, impact factor, citation count and expression data are
       <b>deliberately excluded</b> at every stage.</p>
 
       <p><b>Refuting papers subtract.</b> A paper that tested the pair and found no interaction is
@@ -332,7 +371,7 @@
       to zero by refutations alone \u2014 the term is capped so at least a tenth of the score stands.
       A paper that simply never mentions the pair is <b>not</b> a refutation; that is recorded as
       \u201cnot assessed\u201d and subtracts nothing.
-      A \u00b10.10 perturbation of any single assay weight moves the mean score by \u22640.050
+      A \u00b10.10 perturbation of any single assay weight moves the mean score by \u22640.042
       (measured over scored interactions only).</p>
 
       <p><b>A blank score is not a zero.</b> Blank means <i>not assessed</i> \u2014 no paper for that pair
@@ -381,7 +420,8 @@
       IntAct: "A curated physical interaction with its detection method and PubMed id (high-throughput screens excluded)",
       GtoPdb: "An expert-curated ligand&ndash;receptor pharmacology record",
       PDB: "A 3D structure containing a chain of each partner",
-      "HGNC approved name": "The receptor is officially named after the ligand"
+      "HGNC approved name": "The receptor is officially named after the ligand",
+      Reactome: "A curated, human (not inferred) Reactome event linking both partners with a PubMed id: a binding reaction, or a small complex of at most four proteins"
     };
     const BS = S.by_source || {};
     const sourcesTables = `
